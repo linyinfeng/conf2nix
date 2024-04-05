@@ -16,7 +16,7 @@ In most cases the output of `nconf2nix` can not be directly used in `structuredE
 
 ## Usage of conf2nix
 
-To use `conf2nix`, call the main function `legacyPackages.${system}.conf2nix`. Read [conf2nix/default.nix](./conf2nix/default.nix) for more options.
+To use `conf2nix`, call the main function `lib.conf2nix`. Read [conf2nix/default.nix](./conf2nix/default.nix) for more options.
 
 ```nix
 conf2nix {

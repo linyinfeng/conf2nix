@@ -33,6 +33,7 @@
           inputs.flake-parts.flakeModules.easyOverlay
           inputs.treefmt-nix.flakeModule
         ];
+        flake.lib = import ./conf2nix { inherit (inputs.nixpkgs) lib; };
         perSystem =
           {
             config,
@@ -64,7 +65,6 @@
                 '';
           in
           {
-            legacyPackages.conf2nix = pkgs.callPackage ./conf2nix { };
             packages = {
               conf2nix-wrapper = pkgs.callPackage ./conf2nix-wrapper { inherit self; };
               nconf2nix = craneLib.buildPackage (
@@ -81,7 +81,6 @@
             };
             overlayAttrs = {
               inherit (config.packages) nconf2nix conf2nix-wrapper;
-              inherit (config.legacyPackages) conf2nix;
             };
             checks =
               {
@@ -100,7 +99,8 @@
                   testKernel = pkgs.linux_latest;
                 in
                 {
-                  conf2nix-test-full = self'.legacyPackages.conf2nix {
+                  conf2nix-test-full = self.lib.conf2nix {
+                    inherit pkgs;
                     # test build on a generated full kernel configuration
                     configFile = testKernel.configfile;
                     kernel = testKernel;

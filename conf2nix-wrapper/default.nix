@@ -38,16 +38,15 @@ writeShellApplication {
       { pkgs ? import <nixpkgs> { }, ... }@args:
       let
         inherit (pkgs) lib;
-        conf2nix = pkgs.callPackage "${self}/conf2nix" { };
+        conf2nix = import "${self}/conf2nix" { inherit lib; };
         configFile = builtins.path { name = "config"; path = /. + "$config"; };
         originalSrc = "$kernel_src";
         src = if lib.isStorePath originalSrc then builtins.storePath originalSrc else lib.cleanSource originalSrc;
-        conf2nixArgs = lib.attrsets.removeAttrs args [ "pkgs" ];
       in
-      (conf2nix {
+      conf2nix ({
         inherit configFile src;
         patches = [];
-      }).override conf2nixArgs
+      } // args)
     EOF
 
     message "about to evaluate and build"

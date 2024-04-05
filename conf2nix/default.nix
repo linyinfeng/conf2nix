@@ -1,14 +1,9 @@
 # SPDX-License-Identifier: MIT
 
-{
-  stdenv,
-  makeWrapper,
-  flex,
-  bison,
-  lib,
-}:
+{ lib }:
 lib.makeOverridable (
   {
+    pkgs ? import <nixpkgs> { },
     configFile,
     kernel ? null,
     src ? kernel.src,
@@ -23,10 +18,20 @@ lib.makeOverridable (
     emptyStringWorkaround ? true,
     withPrompt ? true,
   }:
+  let
+    inherit (pkgs)
+      stdenv
+      buildPackages
+      makeWrapper
+      flex
+      bison
+      ;
+  in
   stdenv.mkDerivation (finalAttrs: {
     name = "config.nix";
     inherit src patches;
 
+    depsBuildBuild = [ buildPackages.stdenv.cc ];
     nativeBuildInputs = [
       makeWrapper
       flex
@@ -54,13 +59,23 @@ lib.makeOverridable (
         sed --in-place=original 's/^#.*$//g' .config
       ''}
       CONF2NIX_OUTPUT_N="${outputN}" make nixconfig >config.nix 2>conf2nix_warnings
-      ${lib.optionalString warningAsError ''
-        if [ -s conf2nix_warnings ]; then
-          echo "--- warnings ---"
-          cat conf2nix_warnings
-          exit 1
-        fi
-      ''}
+      ${
+        if warningAsError then
+          ''
+            if [ -s conf2nix_warnings ]; then
+              echo "--- errors ---"
+              cat conf2nix_warnings
+              exit 1
+            fi
+          ''
+        else
+          ''
+            if [ -s conf2nix_warnings ]; then
+              echo "--- warnings ---"
+              cat conf2nix_warnings
+            fi
+          ''
+      }
       runHook postBuild
     '';
     installPhase = ''

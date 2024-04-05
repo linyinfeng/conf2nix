@@ -1,6 +1,6 @@
-# conf2nix/nconf2nix - Linux Kernel Config to Nix
+# [n]conf2nix
 
-Two simple _best effort_ tools to convert kconfig `.config` file to nixpkgs _structured config_.
+Two simple **experimental** _best effort_ tools to convert kconfig `.config` file to nixpkgs _structured config_.
 
 From structured config to `.config` we have [generate-config.pl](https://github.com/NixOS/nixpkgs/blob/master/pkgs/os-specific/linux/kernel/generate-config.pl). These two tools are created to **help** developers to convert `.config` to structured config.
 

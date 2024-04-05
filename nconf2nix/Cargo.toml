@@ -1,0 +1,15 @@
+[package]
+name = "nconf2nix"
+authors = ["Lin Yinfeng <lin.yinfeng@outlook.com>"]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Naive Version of Linux Kernel Config to Nix"
+
+[dependencies]
+clap = { version = "*", features = ["cargo", "derive"] }
+clap_complete = "*"
+log = "*"
+pretty_env_logger = "*"
+anyhow = "*"
+console = "*"

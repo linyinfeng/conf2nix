@@ -1,0 +1,4 @@
+hostprogs	+= conf2nix
+conf2nix-objs	:= conf2nix.o $(common-objs)
+nixconfig-prog	:= conf2nix
+$(eval $(call config_rule,nixconfig))

@@ -1,0 +1,139 @@
+{
+  inputs = {
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
+
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+    treefmt-nix.url = "github:numtide/treefmt-nix";
+    treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    crane.url = "github:ipetkov/crane";
+    crane.inputs.nixpkgs.follows = "nixpkgs";
+
+    flake-compat.url = "github:edolstra/flake-compat";
+    flake-compat.flake = false;
+  };
+
+  outputs =
+    inputs@{ flake-parts, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } (
+      {
+        self,
+        inputs,
+        lib,
+        ...
+      }:
+      {
+        systems = [
+          "x86_64-linux"
+          "aarch64-linux"
+        ];
+        imports = [
+          inputs.flake-parts.flakeModules.easyOverlay
+          inputs.treefmt-nix.flakeModule
+        ];
+        perSystem =
+          {
+            config,
+            self',
+            pkgs,
+            system,
+            ...
+          }:
+          let
+            craneLib = inputs.crane.lib.${system};
+            src = craneLib.cleanCargoSource (craneLib.path ./nconf2nix);
+            bareCommonArgs = {
+              inherit src;
+              nativeBuildInputs = with pkgs; [ installShellFiles ];
+              buildInputs = [ ];
+            };
+            cargoArtifacts = craneLib.buildDepsOnly bareCommonArgs;
+            commonArgs = bareCommonArgs // {
+              inherit cargoArtifacts;
+            };
+
+            linuxEditorSettings =
+              pkgs.runCommand "linux-editor-settings" { inherit (pkgs.linux_latest) src; }
+                ''
+                  runPhase unpackPhase
+                  mkdir -p "$out"
+                  cp ".clang-format" "$out/"
+                  cp ".editorconfig" "$out/"
+                '';
+          in
+          {
+            legacyPackages.conf2nix = pkgs.callPackage ./conf2nix { };
+            packages = {
+              conf2nix-wrapper = pkgs.callPackage ./conf2nix-wrapper { inherit self; };
+              nconf2nix = craneLib.buildPackage (
+                commonArgs
+                // {
+                  postInstall = ''
+                    installShellCompletion --cmd conf2nix \
+                      --bash <($out/bin/conf2nix completion bash) \
+                      --fish <($out/bin/conf2nix completion fish) \
+                      --zsh  <($out/bin/conf2nix completion zsh)
+                  '';
+                }
+              );
+            };
+            overlayAttrs = {
+              inherit (config.packages) nconf2nix conf2nix-wrapper;
+              inherit (config.legacyPackages) conf2nix;
+            };
+            checks =
+              {
+                # checks for nconf2nix
+                inherit (self'.packages) nconf2nix;
+                nconf2nix-doc = craneLib.cargoDoc commonArgs;
+                nconf2nix-fmt = craneLib.cargoFmt { inherit src; };
+                nconf2nix-nextest = craneLib.cargoNextest commonArgs;
+                nconf2nix-clippy = craneLib.cargoClippy (
+                  commonArgs // { cargoClippyExtraArgs = "--all-targets -- --deny warnings"; }
+                );
+              }
+              // (
+                # checks for conf2nix
+                let
+                  testKernel = pkgs.linux_latest;
+                in
+                {
+                  conf2nix-test-full = self'.legacyPackages.conf2nix {
+                    # test build on a generated full kernel configuration
+                    configFile = testKernel.configfile;
+                    kernel = testKernel;
+                    # generated config requires warnUnused = false
+                    # since it contains symbols that does not have prompt
+                    warnUnused = false;
+                  };
+                }
+              );
+            treefmt = {
+              projectRootFile = "flake.nix";
+              programs = {
+                nixfmt-rfc-style.enable = true;
+                rustfmt.enable = true;
+                prettier.enable = true;
+                taplo.enable = true;
+                clang-format.enable = true;
+              };
+              settings.formatter.clang-format = {
+                options = [ "-style=file:${linuxEditorSettings}/.clang-format" ];
+              };
+            };
+            devShells.default = pkgs.mkShell {
+              inputsFrom = lib.attrValues self'.checks;
+              packages = with pkgs; [
+                rustup
+                rust-analyzer
+              ];
+              shellHook = ''
+                ln -sf "${linuxEditorSettings}/"{.clang-format,.editorconfig} .
+              '';
+            };
+          };
+      }
+    );
+}

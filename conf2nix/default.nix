@@ -13,7 +13,7 @@ lib.makeOverridable (
     # in kconfig
     # '# CONFIG_XXX is not set' is the same as
     # 'CONFIG_XXX=n'
-    stripComments ? true,
+    stripComments ? false,
     outputN ? "no",
     warnUnused ? true,
     warningAsError ? true,

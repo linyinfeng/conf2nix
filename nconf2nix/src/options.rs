@@ -29,8 +29,8 @@ pub struct Options {
     pub config: Option<PathBuf>,
     #[arg(short, long, value_name = "PATH", help = "output file, default stdout")]
     pub output: Option<PathBuf>,
-    #[arg(short, long, help = "whether to threat `# CONFIG_X is not set` as no")]
-    pub not_set_as_no: bool,
+    #[arg(short, long, help = "whether to ignore `# CONFIG_X is not set`")]
+    pub ignore_not_set: bool,
     #[arg(short, long, help = "ignore ill-formed lines")]
     pub relaxed: bool,
     #[arg(short, long, help = "add comments to distinguish string/hex/int")]

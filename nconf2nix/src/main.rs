@@ -131,9 +131,10 @@ impl RunContext {
     }
 
     fn process_line(&self, line: &str, symbols: &mut Vec<Symbol>) -> anyhow::Result<bool> {
-        if self.options.not_set_as_no && line.starts_with("# CONFIG_") {
-            let end_of_symbol = match line.find(' ') {
-                Some(i) => i,
+        if !self.options.ignore_not_set && line.starts_with("# CONFIG_") {
+            let symbol_index = "# CONFIG_".len();
+            let end_of_symbol = match line[symbol_index..].find(' ') {
+                Some(o) => symbol_index + o,
                 None => return Ok(false),
             };
             if !line[end_of_symbol + 1..].starts_with("is not set") {

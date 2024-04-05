@@ -15,6 +15,7 @@ struct options {
 	enum output_n output_n;
 	bool warn_unused;
 	bool with_prompt;
+	bool output_empty_string;
 };
 
 static void conf2nix(const struct options *options);
@@ -216,13 +217,13 @@ static void conf2nix_symbol(const struct options *options, FILE *out,
 	case S_HEX:
 	case S_INT:
 		val = value->val;
-#if defined(CONF2NIX_EMPTY_STRING_WORKAROUND)
+
 		// this is a workaround for nixpkgs
 		// the config system of nixpkgs does not handle `freefrom ""` properly
-		if (*val == '\0') {
+		if (*val == '\0' && !options->output_empty_string) {
 			break;
 		}
-#endif
+
 		escaped = escape_string_value(val);
 		conf2nix_before_symbol(out, new_line_needed);
 		fprintf(out, CONF2NIX_INDENT "\"%s\" = ", sym->name);
@@ -305,6 +306,7 @@ static void usage(const char *progname, FILE *out)
 	fprintf(out, "  CONF2NIX_OUTPUT_N=[none|unset|no]\n");
 	fprintf(out, "  CONF2NIX_WARN_UNUSED=[0|1]\n");
 	fprintf(out, "  CONF2NIX_WITH_PROMPT=[0|1]\n");
+	fprintf(out, "  CONF2NIX_OUTPUT_EMPTY_STRING=[0|1]\n");
 }
 
 static bool parse_bool_env(const char *progname, const char *env_name,
@@ -335,6 +337,7 @@ int main(int argc, char **argv)
 	enum output_n output_n = OUTPUT_N_NONE;
 	bool warn_unused;
 	bool with_prompt;
+	bool output_empty_string;
 
 	if (argc != 2) {
 		fprintf(stderr, "%s: Kconfig file missing\n", argv[0]);
@@ -359,9 +362,13 @@ int main(int argc, char **argv)
 	}
 	warn_unused = parse_bool_env(argv[0], "CONF2NIX_WARN_UNUSED", true);
 	with_prompt = parse_bool_env(argv[0], "CONF2NIX_WITH_PROMPT", false);
-	options = (struct options){ .output_n = output_n,
-				    .warn_unused = warn_unused,
-				    .with_prompt = with_prompt };
+	output_empty_string =
+		parse_bool_env(argv[0], "CONF2NIX_OUTPUT_EMPTY_STRING", false);
+	options =
+		(struct options){ .output_n = output_n,
+				  .warn_unused = warn_unused,
+				  .with_prompt = with_prompt,
+				  .output_empty_string = output_empty_string };
 
 	conf_parse(argv[1]);
 	retval = conf_read(NULL);

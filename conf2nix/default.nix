@@ -59,15 +59,12 @@ lib.makeOverridable (
       ]
       ++ (stdenv.hostPlatform.linux-kernel.makeFlags or [ ]);
 
-    env =
-      lib.optionalAttrs emptyStringWorkaround {
-        NIX_CFLAGS_COMPILE = "-DCONF2NIX_EMPTY_STRING_WORKAROUND=1";
-      }
-      // {
-        CONF2NIX_OUTPUT_N = outputN;
-        CONF2NIX_WARN_UNUSED = if warnUnused then "1" else "0";
-        CONF2NIX_WITH_PROMPT = if withPrompt then "1" else "0";
-      };
+    env = {
+      CONF2NIX_OUTPUT_EMPTY_STRING = if emptyStringWorkaround then "0" else "1";
+      CONF2NIX_OUTPUT_N = outputN;
+      CONF2NIX_WARN_UNUSED = if warnUnused then "1" else "0";
+      CONF2NIX_WITH_PROMPT = if withPrompt then "1" else "0";
+    };
 
     buildPhase = ''
       runHook preBuild

@@ -33,7 +33,7 @@
           inputs.flake-parts.flakeModules.easyOverlay
           inputs.treefmt-nix.flakeModule
         ];
-        flake.lib = import ./conf2nix { inherit (inputs.nixpkgs) lib; };
+        flake.lib.conf2nix = import ./conf2nix { inherit (inputs.nixpkgs) lib; };
         perSystem =
           {
             config,

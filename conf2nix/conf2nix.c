@@ -188,7 +188,7 @@ static void conf2nix_symbol(const struct options *options, FILE *out,
 		if (options->output_n != OUTPUT_N && tri == no) {
 			if (options->output_n == OUTPUT_N_AS_UNSET)
 				conf2nix_before_symbol(out, new_line_needed);
-			fprintf(out, CONF2NIX_INDENT "# \"%s\" is not set\n",
+			fprintf(out, CONF2NIX_INDENT "# \"%s\" is not set",
 				sym->name);
 			conf2nix_after_symbol(options, out, menu);
 			break;

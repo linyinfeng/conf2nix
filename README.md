@@ -49,9 +49,9 @@ in {
   "CROSS_MEMORY_ATTACH" = yes; # Enable process_vm_readv/writev syscalls
   "AUDIT" = yes; # Auditing support
 
-  ### IRQ subsystem
+  ### General setup -> IRQ subsystem
   "SPARSE_IRQ" = yes; # Support sparse irq numbering
-  ### end of IRQ subsystem
+  ### General setup: end of IRQ subsystem
 ```
 
 # Usage of nconf2nix

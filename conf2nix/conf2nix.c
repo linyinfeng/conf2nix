@@ -19,7 +19,8 @@ struct options {
 
 static void conf2nix(const struct options *options);
 static void conf2nix_rec(const struct options *options, FILE *out,
-			 struct menu *menu, int level, bool *new_line_needed);
+			 struct menu *menu, const char *parent_prompt,
+			 int level, bool *new_line_needed);
 static void conf2nix_level_indicator(FILE *out, int level);
 static void conf2nix_heading(FILE *out);
 static void conf2nix_footing(FILE *out);
@@ -41,7 +42,7 @@ static void conf2nix(const struct options *options)
 	bool new_line_needed = false;
 
 	conf2nix_heading(stdout);
-	conf2nix_rec(options, stdout, &rootmenu, 0, &new_line_needed);
+	conf2nix_rec(options, stdout, &rootmenu, NULL, 0, &new_line_needed);
 	for_all_symbols(i, sym)
 	{
 		if (options->warn_unused && sym->name &&
@@ -55,11 +56,14 @@ static void conf2nix(const struct options *options)
 }
 
 static void conf2nix_rec(const struct options *options, FILE *out,
-			 struct menu *menu, int level, bool *new_line_needed)
+			 struct menu *menu, const char *parent_prompt,
+			 int level, bool *new_line_needed)
 {
 	struct symbol *sym = NULL;
 	struct menu *child;
 	const char *prompt = NULL;
+	const char *our_prompt = NULL;
+	char *combined_prompt = NULL;
 	FILE *inner_output;
 	char *inner_output_ptr;
 	size_t inner_output_size;
@@ -76,7 +80,24 @@ static void conf2nix_rec(const struct options *options, FILE *out,
 	sym = menu->sym;
 	if (!sym) {
 		if (options->with_prompt) {
-			prompt = menu_get_prompt(menu);
+			our_prompt = menu_get_prompt(menu);
+			/* do not append prompt of root menu, since it has no information included */
+			if (level == 1)
+				parent_prompt = NULL;
+			if (parent_prompt) {
+				size_t size = 0;
+				const char *delimiter = " -> ";
+				size += strlen(parent_prompt);
+				size += strlen(delimiter);
+				size += strlen(our_prompt);
+				size += 1; /* length of '\0' */
+				combined_prompt = malloc(size);
+				snprintf(combined_prompt, size, "%s%s%s",
+					 parent_prompt, delimiter, our_prompt);
+				prompt = combined_prompt;
+			} else {
+				prompt = our_prompt;
+			}
 			*new_line_needed = false;
 		}
 		goto conf_childs;
@@ -91,7 +112,7 @@ static void conf2nix_rec(const struct options *options, FILE *out,
 	conf2nix_symbol(options, inner_output, menu, sym, new_line_needed);
 conf_childs:
 	for (child = menu->list; child; child = child->next)
-		conf2nix_rec(options, inner_output, child, level + 1,
+		conf2nix_rec(options, inner_output, child, prompt, level + 1,
 			     new_line_needed);
 
 	fclose(inner_output);
@@ -109,15 +130,20 @@ conf_childs:
 			fprintf(stderr, "failed writing to stream");
 			exit(1);
 		}
-		if (prompt) {
+		if (our_prompt) {
 			conf2nix_level_indicator(out, level);
-			fprintf(out, "end of %s\n", prompt);
+			if (parent_prompt) {
+				fprintf(out, "%s: ", parent_prompt);
+			}
+			fprintf(out, "end of %s\n", our_prompt);
+
 			/* we need new line only after  */
 			*new_line_needed = true;
 		}
 	}
 
 	free(inner_output_ptr);
+	free(combined_prompt);
 }
 
 static void conf2nix_level_indicator(FILE *out, int level)

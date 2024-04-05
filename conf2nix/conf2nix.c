@@ -11,74 +11,140 @@
 // the same as confdata.c
 enum output_n { OUTPUT_N, OUTPUT_N_AS_UNSET, OUTPUT_N_NONE };
 
-static void conf2nix(enum output_n output_n, bool warn_unused);
-static void conf2nix_rec(struct menu *menu, enum output_n output_n);
-static void conf2nix_heading(void);
-static void conf2nix_footing(void);
-static void conf2nix_footing(void);
-static void conf2nix_symbol(struct symbol *sym, enum output_n output_n);
-static void usage(const char *progname);
-static char *escape_string_value(const char *in);
+struct options {
+	enum output_n output_n;
+	bool warn_unused;
+	bool with_prompt;
+};
 
-static void conf2nix(enum output_n output_n, bool warn_unused)
+static void conf2nix(const struct options *options);
+static void conf2nix_rec(const struct options *options, FILE *out,
+			 struct menu *menu, int level, bool *new_line_needed);
+static void conf2nix_level_indicator(FILE *out, int level);
+static void conf2nix_heading(FILE *out);
+static void conf2nix_footing(FILE *out);
+static void conf2nix_symbol(const struct options *options, FILE *out,
+			    struct menu *menu, struct symbol *sym,
+			    bool *new_line_needed);
+static void conf2nix_before_symbol(FILE *out, bool *new_line_needed);
+static void conf2nix_after_symbol(const struct options *options, FILE *out,
+				  struct menu *menu);
+static char *escape_string_value(const char *in);
+static void usage(const char *progname, FILE *out);
+static bool parse_bool_env(const char *progname, const char *env_name,
+			   bool default_value);
+
+static void conf2nix(const struct options *options)
 {
 	int i;
 	struct symbol *sym;
+	bool new_line_needed = false;
 
-	conf2nix_heading();
-	conf2nix_rec(&rootmenu, output_n);
+	conf2nix_heading(stdout);
+	conf2nix_rec(options, stdout, &rootmenu, 0, &new_line_needed);
 	for_all_symbols(i, sym)
 	{
-		if (warn_unused && sym->name && sym->flags & SYMBOL_DEF_USER &&
+		if (options->warn_unused && sym->name &&
+		    sym->flags & SYMBOL_DEF_USER &&
 		    !(sym->flags & SYMBOL_WRITTEN)) {
 			fprintf(stderr, "unused symbol: '%s'\n", sym->name);
 		}
 		sym->flags &= ~SYMBOL_WRITTEN;
 	};
-	conf2nix_footing();
+	conf2nix_footing(stdout);
 }
 
-static void conf2nix_rec(struct menu *menu, enum output_n output_n)
+static void conf2nix_rec(const struct options *options, FILE *out,
+			 struct menu *menu, int level, bool *new_line_needed)
 {
-	struct symbol *sym;
+	struct symbol *sym = NULL;
 	struct menu *child;
+	const char *prompt = NULL;
+	FILE *inner_output;
+	char *inner_output_ptr;
+	size_t inner_output_size;
+	int retval;
+
+	/* before real output, output to an memory stream instead */
+	/* if inner output is empty, we do not need to output prompt */
+	inner_output = open_memstream(&inner_output_ptr, &inner_output_size);
 
 	if (!menu_has_prompt(menu)) {
-		// menu without prompt can not be set by nixpkgs
+		/* menu without prompt can not be set by nixpkgs */
 		goto conf_childs;
 	}
 	sym = menu->sym;
-	if (!sym)
+	if (!sym) {
+		if (options->with_prompt) {
+			prompt = menu_get_prompt(menu);
+			*new_line_needed = false;
+		}
 		goto conf_childs;
+	}
 
 	sym_calc_value(sym);
 
-	/* skip already written symbols */
 	if (sym->flags & SYMBOL_WRITTEN)
 		goto conf_childs;
-
 	sym->flags |= SYMBOL_WRITTEN;
-	conf2nix_symbol(sym, output_n);
 
+	conf2nix_symbol(options, inner_output, menu, sym, new_line_needed);
 conf_childs:
 	for (child = menu->list; child; child = child->next)
-		conf2nix_rec(child, output_n);
+		conf2nix_rec(options, inner_output, child, level + 1,
+			     new_line_needed);
+
+	fclose(inner_output);
+	if (inner_output_size > 0) {
+		/* real output */
+		if (prompt) {
+			if (menu != &rootmenu)
+				fprintf(out, "\n");
+			conf2nix_level_indicator(out, level);
+			fprintf(out, "%s\n", prompt);
+		}
+		/* include child output */
+		retval = fputs(inner_output_ptr, out);
+		if (retval == EOF) {
+			fprintf(stderr, "failed writing to stream");
+			exit(1);
+		}
+		if (prompt) {
+			conf2nix_level_indicator(out, level);
+			fprintf(out, "end of %s\n", prompt);
+			/* we need new line only after  */
+			*new_line_needed = true;
+		}
+	}
+
+	free(inner_output_ptr);
 }
 
-static void conf2nix_heading(void)
+static void conf2nix_level_indicator(FILE *out, int level)
 {
-	printf("{ lib }:\n");
-	printf("let\n");
-	printf("  inherit (lib.kernel) yes no module freeform;\n");
-	printf("in {\n");
+	fprintf(out, CONF2NIX_INDENT "#");
+	while (level-- > 0) {
+		fprintf(out, "#");
+	}
+	fprintf(out, " ");
 }
 
-static void conf2nix_footing(void)
+static void conf2nix_heading(FILE *out)
 {
-	printf("}\n");
+	fprintf(out, "{ lib }:\n");
+	fprintf(out, "let\n");
+	fprintf(out, "  inherit (lib.kernel) yes no module freeform;\n");
+	fprintf(out, "in {\n");
 }
 
-static void conf2nix_symbol(struct symbol *sym, enum output_n output_n)
+static void conf2nix_footing(FILE *out)
+{
+	fprintf(out, "}\n");
+}
+
+static void conf2nix_symbol(const struct options *options, FILE *out,
+			    struct menu *menu, struct symbol *sym,
+			    bool *new_line_needed)
 {
 	const struct symbol_value *value = &sym->def[S_DEF_USER];
 	const char *val;
@@ -93,26 +159,30 @@ static void conf2nix_symbol(struct symbol *sym, enum output_n output_n)
 	case S_BOOLEAN:
 	case S_TRISTATE:
 		tri = value->tri;
-		if (output_n != OUTPUT_N && tri == no) {
-			if (output_n == OUTPUT_N_AS_UNSET)
-				printf(CONF2NIX_INDENT "# \"%s\" is not set\n",
-				       sym->name);
+		if (options->output_n != OUTPUT_N && tri == no) {
+			if (options->output_n == OUTPUT_N_AS_UNSET)
+				conf2nix_before_symbol(out, new_line_needed);
+			fprintf(out, CONF2NIX_INDENT "# \"%s\" is not set\n",
+				sym->name);
+			conf2nix_after_symbol(options, out, menu);
 			break;
 		}
-		printf(CONF2NIX_INDENT "\"%s\" = ", sym->name);
+		conf2nix_before_symbol(out, new_line_needed);
+		fprintf(out, CONF2NIX_INDENT "\"%s\" = ", sym->name);
 		switch (tri) {
 		case no:
-			printf("no");
+			fprintf(out, "no");
 			break;
 		case mod:
-			printf("module");
+			fprintf(out, "module");
 			break;
 		case yes:
-			printf("yes");
+			fprintf(out, "yes");
 			break;
 		default: // unreachable
 		}
-		printf(";\n");
+		fprintf(out, ";");
+		conf2nix_after_symbol(options, out, menu);
 		break;
 	// all other types are treated as string
 	// including S_STRING, S_HEX, and S_INT
@@ -128,13 +198,35 @@ static void conf2nix_symbol(struct symbol *sym, enum output_n output_n)
 		}
 #endif
 		escaped = escape_string_value(val);
-		printf(CONF2NIX_INDENT "\"%s\" = ", sym->name);
-		printf("freeform %s", escaped);
-		printf(";\n");
+		conf2nix_before_symbol(out, new_line_needed);
+		fprintf(out, CONF2NIX_INDENT "\"%s\" = ", sym->name);
+		fprintf(out, "freeform %s", escaped);
+		fprintf(out, ";");
+		conf2nix_after_symbol(options, out, menu);
 	default: // unreachable
 	}
 
 	free(escaped);
+}
+
+static void conf2nix_after_symbol(const struct options *options, FILE *out,
+				  struct menu *menu)
+{
+	const char *prompt;
+	if (options->with_prompt) {
+		prompt = menu_get_prompt(menu);
+		if (prompt) {
+			fprintf(out, " # %s", prompt);
+		}
+	}
+	fprintf(out, "\n");
+}
+
+static void conf2nix_before_symbol(FILE *out, bool *new_line_needed)
+{
+	if (*new_line_needed)
+		fprintf(out, "\n");
+	*new_line_needed = false;
 }
 
 static char *escape_string_value(const char *in)
@@ -179,25 +271,48 @@ static char *escape_string_value(const char *in)
 	return out;
 }
 
-static void usage(const char *progname)
+static void usage(const char *progname, FILE *out)
 {
-	printf("Usage: %s <kconfig-file>\n", progname);
-	printf("Environment variables:\n");
-	printf("  KCONFIG_CONFIG=<config-file>\n");
-	printf("  CONF2NIX_OUTPUT_N=[none|unset|no]\n");
+	fprintf(out, "Usage: %s <kconfig-file>\n", progname);
+	fprintf(out, "Environment variables:\n");
+	fprintf(out, "  KCONFIG_CONFIG=<config-file>\n");
+	fprintf(out, "  CONF2NIX_OUTPUT_N=[none|unset|no]\n");
+	fprintf(out, "  CONF2NIX_WARN_UNUSED=[0|1]\n");
+	fprintf(out, "  CONF2NIX_WITH_PROMPT=[0|1]\n");
+}
+
+static bool parse_bool_env(const char *progname, const char *env_name,
+			   bool default_value)
+{
+	const char *env;
+
+	env = getenv(env_name);
+	if (env) {
+		if (!strcasecmp(env, "1"))
+			return true;
+		else if (!strcasecmp(env, "0"))
+			return false;
+		else {
+			fprintf(stderr, "%s: failed to parse %s: '%s'\n",
+				progname, env_name, env);
+			fprintf(stderr, "  [0|1] required");
+		}
+	}
+	return default_value;
 }
 
 int main(int argc, char **argv)
 {
 	int retval;
 	const char *output_n_env;
-	const char *warn_unused_env;
+	struct options options;
 	enum output_n output_n = OUTPUT_N_NONE;
-	bool warn_unused = true;
+	bool warn_unused;
+	bool with_prompt;
 
 	if (argc != 2) {
 		fprintf(stderr, "%s: Kconfig file missing\n", argv[0]);
-		usage(argv[0]);
+		usage(argv[0], stderr);
 		exit(1);
 	}
 
@@ -211,25 +326,16 @@ int main(int argc, char **argv)
 			output_n = OUTPUT_N;
 		else {
 			fprintf(stderr,
-				"%s: failed to parse CONF2NIX_OUTPUT_N: '%s'",
+				"%s: failed to parse CONF2NIX_OUTPUT_N: '%s'\n",
 				argv[0], output_n_env);
 			fprintf(stderr, "  [none|unset|no] required");
 		}
 	}
-
-	warn_unused_env = getenv("CONF2NIX_WARN_UNUSED");
-	if (warn_unused_env) {
-		if (!strcasecmp(warn_unused_env, "1"))
-			warn_unused = true;
-		else if (!strcasecmp(warn_unused_env, "0"))
-			warn_unused = false;
-		else {
-			fprintf(stderr,
-				"%s: failed to parse CONF2NIX_WARN_UNUSED: '%s'",
-				argv[0], warn_unused_env);
-			fprintf(stderr, "  [0|1] required");
-		}
-	}
+	warn_unused = parse_bool_env(argv[0], "CONF2NIX_WARN_UNUSED", true);
+	with_prompt = parse_bool_env(argv[0], "CONF2NIX_WITH_PROMPT", false);
+	options = (struct options){ .output_n = output_n,
+				    .warn_unused = warn_unused,
+				    .with_prompt = with_prompt };
 
 	conf_parse(argv[1]);
 	retval = conf_read(NULL);
@@ -237,7 +343,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "%s: failed to read config file\n", argv[0]);
 	}
 
-	conf2nix(output_n, warn_unused);
+	conf2nix(&options);
 
 	return 0;
 }

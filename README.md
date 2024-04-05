@@ -32,17 +32,26 @@ $ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper"
 usage: conf2nix <kernel-src> <kconfig-config> <extra args to nix>...
 $ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper" -- /path/to/linux/source-code config > config.nix
 ...
-$ head config.nix
+$ head -n 19 config.nix
 { lib }:
 let
   inherit (lib.kernel) yes no module freeform;
 in {
-  "WERROR" = yes;
-  "LOCALVERSION_AUTO" = yes;
-  "KERNEL_GZIP" = yes;
-  "DEFAULT_HOSTNAME" = freeform "(none)";
-  "SYSVIPC" = yes;
-  "POSIX_MQUEUE" = yes;
+  # Linux/x86 6.8.2 Kernel Configuration
+
+  ## General setup
+  "LOCALVERSION_AUTO" = yes; # Automatically append version information to the version string
+  "KERNEL_ZSTD" = yes; # ZSTD
+  "DEFAULT_HOSTNAME" = freeform "(none)"; # Default hostname
+  "SYSVIPC" = yes; # System V IPC
+  "POSIX_MQUEUE" = yes; # POSIX Message Queues
+  "WATCH_QUEUE" = yes; # General notification queue
+  "CROSS_MEMORY_ATTACH" = yes; # Enable process_vm_readv/writev syscalls
+  "AUDIT" = yes; # Auditing support
+
+  ### IRQ subsystem
+  "SPARSE_IRQ" = yes; # Support sparse irq numbering
+  ### end of IRQ subsystem
 ```
 
 # Usage of nconf2nix

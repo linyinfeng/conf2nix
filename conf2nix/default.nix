@@ -21,6 +21,7 @@ lib.makeOverridable (
     warnUnused ? true,
     warningAsError ? true,
     emptyStringWorkaround ? true,
+    withPrompt ? true,
   }:
   stdenv.mkDerivation (finalAttrs: {
     name = "config.nix";
@@ -42,6 +43,7 @@ lib.makeOverridable (
       }
       // {
         CONF2NIX_WARN_UNUSED = if warnUnused then "1" else "0";
+        CONF2NIX_WITH_PROMPT = if withPrompt then "1" else "0";
       };
     buildPhase = ''
       runHook preBuild

@@ -70,7 +70,7 @@ lib.makeOverridable (
       runHook preBuild
 
       make $makeFlags build_nixconfig
-      make $makeFlags nixconfig >config.nix |& tee conf2nix_warnings
+      make $makeFlags nixconfig >config.nix 2>conf2nix_warnings
 
       ${
         if warningAsError then

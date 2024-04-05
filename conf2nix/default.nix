@@ -33,6 +33,8 @@ lib.makeOverridable (
       bison
     ];
     postPatch = ''
+      [[ -f scripts/ld-version.sh ]] && patchShebangs scripts/ld-version.sh
+
       cp -v ${./conf2nix.c} scripts/kconfig/conf2nix.c
       echo "include ${./Makefile.conf2nix}" >> scripts/kconfig/Makefile
       cp -v ${configFile} .config

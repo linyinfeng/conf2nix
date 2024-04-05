@@ -1,4 +1,12 @@
 hostprogs	+= conf2nix
 conf2nix-objs	:= conf2nix.o $(common-objs)
-nixconfig-prog	:= conf2nix
-$(eval $(call config_rule,nixconfig))
+# old kernels does not define config_rule
+# nixconfig-prog	:= conf2nix
+# $(eval $(call config_rule,nixconfig))
+# just manually expand config_rule
+PHONY += nixconfig
+nixconfig: $(obj)/conf2nix
+	$(Q)$< $(silent) $(Kconfig)
+
+PHONY += build_nixconfig
+build_nixconfig: $(obj)/conf2nix

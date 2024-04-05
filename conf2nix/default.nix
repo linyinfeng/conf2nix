@@ -8,6 +8,8 @@ lib.makeOverridable (
     kernel ? null,
     src ? kernel.src,
     patches ? kernel.patches,
+    stdenv ? pkgs.stdenv,
+    kernelArch ? stdenv.hostPlatform.linuxArch,
     # in kconfig
     # '# CONFIG_XXX is not set' is the same as
     # 'CONFIG_XXX=n'
@@ -20,7 +22,6 @@ lib.makeOverridable (
   }:
   let
     inherit (pkgs)
-      stdenv
       buildPackages
       makeWrapper
       flex
@@ -37,28 +38,43 @@ lib.makeOverridable (
       flex
       bison
     ];
+
     postPatch = ''
       [[ -f scripts/ld-version.sh ]] && patchShebangs scripts/ld-version.sh
 
       cp -v ${./conf2nix.c} scripts/kconfig/conf2nix.c
       echo "include ${./Makefile.conf2nix}" >> scripts/kconfig/Makefile
       cp -v ${configFile} .config
+
+      ${lib.optionalString stripComments ''
+        echo "stripping line comments from .conifg..."
+        sed --in-place=original 's/^#.*$//g' .config
+      ''}
     '';
+
+    makeFlags =
+      [ "ARCH=${kernelArch}" ]
+      ++ lib.optionals (stdenv.hostPlatform != stdenv.buildPlatform) [
+        "CROSS_COMPILE=${stdenv.cc.targetPrefix}"
+      ]
+      ++ (stdenv.hostPlatform.linux-kernel.makeFlags or [ ]);
+
     env =
       lib.optionalAttrs emptyStringWorkaround {
         NIX_CFLAGS_COMPILE = "-DCONF2NIX_EMPTY_STRING_WORKAROUND=1";
       }
       // {
+        CONF2NIX_OUTPUT_N = outputN;
         CONF2NIX_WARN_UNUSED = if warnUnused then "1" else "0";
         CONF2NIX_WITH_PROMPT = if withPrompt then "1" else "0";
       };
+
     buildPhase = ''
       runHook preBuild
-      make build_nixconfig
-      ${lib.optionalString stripComments ''
-        sed --in-place=original 's/^#.*$//g' .config
-      ''}
-      CONF2NIX_OUTPUT_N="${outputN}" make nixconfig >config.nix 2>conf2nix_warnings
+
+      make $makeFlags build_nixconfig
+      make $makeFlags nixconfig >config.nix |& tee conf2nix_warnings
+
       ${
         if warningAsError then
           ''
@@ -76,15 +92,16 @@ lib.makeOverridable (
             fi
           ''
       }
+
       runHook postBuild
     '';
+
     installPhase = ''
       runHook preInstall
       cp config.nix "$out"
       runHook postInstall
     '';
-    passthru = {
-      inherit kernel;
-    };
+
+    dontFixup = true;
   })
 )

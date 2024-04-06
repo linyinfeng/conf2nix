@@ -99,13 +99,25 @@
                   testKernel = pkgs.linux_latest;
                 in
                 {
-                  conf2nix-test-full = self.lib.conf2nix {
+                  conf2nix = self.lib.conf2nix {
                     inherit pkgs;
                     # test build on a generated full kernel configuration
                     configFile = testKernel.configfile;
                     kernel = testKernel;
                     preset = "standalone";
                   };
+                  conf2nix2conf =
+                    (pkgs.buildLinux {
+                      inherit (testKernel) src version patches;
+                      structuredExtraConfig = import self'.checks.conf2nix { inherit lib; };
+                      # since we generate on the final kernel configuration with preset standalone
+                      # it is already included in self'.conf2nix
+                      enableCommonConfig = false;
+                    }).configfile;
+                  # TODO fix the test
+                  # confEqualsToConf2nix2conf = pkgs.runCommand "conf-equal-test" {} ''
+                  #   diff "${testKernel.configfile}" "${self'.checks.conf2nix2conf}"
+                  # '';
                 }
               );
             treefmt = {

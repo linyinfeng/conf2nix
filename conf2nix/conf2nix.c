@@ -13,6 +13,7 @@ enum output_n { OUTPUT_N, OUTPUT_N_AS_UNSET, OUTPUT_N_NONE };
 
 struct options {
 	enum output_n output_n;
+	bool ignore_invisible;
 	bool warn_unused;
 	bool with_prompt;
 	bool output_empty_string;
@@ -22,6 +23,7 @@ static void conf2nix(const struct options *options);
 static void conf2nix_rec(const struct options *options, FILE *out,
 			 struct menu *menu, const char *parent_prompt,
 			 int level, bool *new_line_needed);
+static void warn_unused(struct menu *menu);
 static void conf2nix_level_indicator(FILE *out, int level);
 static void conf2nix_heading(FILE *out);
 static void conf2nix_footing(FILE *out);
@@ -38,21 +40,10 @@ static bool parse_bool_env(const char *progname, const char *env_name,
 
 static void conf2nix(const struct options *options)
 {
-	int i;
-	struct symbol *sym;
 	bool new_line_needed = false;
-
 	conf2nix_heading(stdout);
 	conf2nix_rec(options, stdout, &rootmenu, NULL, 0, &new_line_needed);
-	for_all_symbols(i, sym)
-	{
-		if (options->warn_unused && sym->name &&
-		    sym->flags & SYMBOL_DEF_USER &&
-		    !(sym->flags & SYMBOL_WRITTEN)) {
-			fprintf(stderr, "unused symbol: '%s'\n", sym->name);
-		}
-		sym->flags &= ~SYMBOL_WRITTEN;
-	};
+	warn_unused(&rootmenu);
 	conf2nix_footing(stdout);
 }
 
@@ -69,6 +60,9 @@ static void conf2nix_rec(const struct options *options, FILE *out,
 	char *inner_output_ptr;
 	size_t inner_output_size;
 	int retval;
+
+	if (options->ignore_invisible && !menu_is_visible(menu))
+		return;
 
 	/* before real output, output to an memory stream instead */
 	/* if inner output is empty, we do not need to output prompt */
@@ -145,6 +139,30 @@ conf_childs:
 
 	free(inner_output_ptr);
 	free(combined_prompt);
+}
+
+static void warn_unused(struct menu *menu)
+{
+	struct symbol *sym;
+	struct menu *child;
+
+	if (!menu_has_prompt(menu)) {
+		/* do not check unused for symbols without prompt */
+		/* since these symbols just can not be used */
+		goto conf_childs;
+	}
+	sym = menu->sym;
+	if (!sym)
+		goto conf_childs;
+
+	if (sym->name && sym->flags & SYMBOL_DEF_USER &&
+	    !(sym->flags & SYMBOL_WRITTEN)) {
+		fprintf(stderr, "unused symbol: '%s'\n", sym->name);
+	}
+
+conf_childs:
+	for (child = menu->list; child; child = child->next)
+		warn_unused(child);
 }
 
 static void conf2nix_level_indicator(FILE *out, int level)
@@ -335,6 +353,7 @@ int main(int argc, char **argv)
 	const char *output_n_env;
 	struct options options;
 	enum output_n output_n = OUTPUT_N_NONE;
+	bool ignore_invisible;
 	bool warn_unused;
 	bool with_prompt;
 	bool output_empty_string;
@@ -360,12 +379,15 @@ int main(int argc, char **argv)
 			fprintf(stderr, "  [none|unset|no] required");
 		}
 	}
+	ignore_invisible =
+		parse_bool_env(argv[0], "CONF2NIX_IGNORE_INVISIBLE", true);
 	warn_unused = parse_bool_env(argv[0], "CONF2NIX_WARN_UNUSED", true);
 	with_prompt = parse_bool_env(argv[0], "CONF2NIX_WITH_PROMPT", false);
 	output_empty_string =
 		parse_bool_env(argv[0], "CONF2NIX_OUTPUT_EMPTY_STRING", false);
 	options =
 		(struct options){ .output_n = output_n,
+				  .ignore_invisible = ignore_invisible,
 				  .warn_unused = warn_unused,
 				  .with_prompt = with_prompt,
 				  .output_empty_string = output_empty_string };

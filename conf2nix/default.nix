@@ -1,6 +1,35 @@
 # SPDX-License-Identifier: MIT
 
 { lib }:
+let
+  helpMissingArgument = arg: ''
+    missing argument '${arg}', please pass this argument or pass a 'preset' argument.
+    - preset 'standalone': suitable for `.config` files which will be used in make oldconfig sololy
+    - preset 'partial': suitable for fragments which will be merged into other `.config` file
+
+    `lib.conf2nix` example:
+
+        lib.conf2nix {
+          ...
+          ${arg} = ...;
+          # or
+          preset = "standalone"|"partial";
+          ...
+        }
+
+    `conf2nix-wrapper` example:
+
+        con2nix src .config --argstr preset standalone|partial ...
+        con2nix src .config --arg ${arg} ...
+
+    read `conf2nix/default.nix` for more information.
+  '';
+  argDefault =
+    arg: preset: defined:
+    assert lib.assertMsg (preset != null) (helpMissingArgument arg);
+    defined.${preset};
+  boolToEnv = b: if b then "1" else "0";
+in
 lib.makeOverridable (
   {
     pkgs ? import <nixpkgs> { },
@@ -8,20 +37,30 @@ lib.makeOverridable (
     kernel ? null,
     src ? kernel.src,
     patches ? kernel.patches,
-    stdenv ? pkgs.stdenv,
-    kernelArch ? stdenv.hostPlatform.linuxArch,
+    kernelArch ? pkgs.stdenv.hostPlatform.linuxArch,
+
+    preset ? null, # possible values: "standalone"|"partial"|null
+
     # in kconfig
     # '# CONFIG_XXX is not set' is the same as
     # 'CONFIG_XXX=n'
-    stripComments ? false,
-    outputN ? "no",
+    stripComments ? argDefault "stripComments" preset {
+      standalone = false; # respect make oldconfig behavior (`is not set` comments are no)
+      partial = true;
+    },
+    ignoreInvisible ? argDefault "ignoreInvisible" preset {
+      standalone = true;
+      partial = false; # we do not have the full information for visiblilty in partial config
+    },
     warnUnused ? true,
+    outputN ? "no",
     warningAsError ? true,
     emptyStringWorkaround ? true,
     withPrompt ? true,
   }:
   let
     inherit (pkgs)
+      stdenv
       buildPackages
       makeWrapper
       flex
@@ -52,40 +91,35 @@ lib.makeOverridable (
       ''}
     '';
 
-    makeFlags =
-      [ "ARCH=${kernelArch}" ]
-      ++ (stdenv.hostPlatform.linux-kernel.makeFlags or [ ]);
+    makeFlags = [ "ARCH=${kernelArch}" ] ++ (stdenv.hostPlatform.linux-kernel.makeFlags or [ ]);
 
     env = {
-      CONF2NIX_OUTPUT_EMPTY_STRING = if emptyStringWorkaround then "0" else "1";
+      CONF2NIX_IGNORE_INVISIBLE = boolToEnv ignoreInvisible;
+      CONF2NIX_OUTPUT_EMPTY_STRING = boolToEnv (!emptyStringWorkaround);
       CONF2NIX_OUTPUT_N = outputN;
-      CONF2NIX_WARN_UNUSED = if warnUnused then "1" else "0";
-      CONF2NIX_WITH_PROMPT = if withPrompt then "1" else "0";
+      CONF2NIX_WARN_UNUSED = boolToEnv warnUnused;
+      CONF2NIX_WITH_PROMPT = boolToEnv withPrompt;
     };
 
     buildPhase = ''
       runHook preBuild
 
       make $makeFlags build_nixconfig
-      make $makeFlags nixconfig >config.nix 2>conf2nix_warnings
+      make $makeFlags nixconfig >config.nix \
+        2> >(tee warnings >&2)
 
-      ${
-        if warningAsError then
-          ''
-            if [ -s conf2nix_warnings ]; then
-              echo "--- errors ---"
-              cat conf2nix_warnings
+      if [ -s warnings ]; then
+        ${
+          if warningAsError then
+            ''
+              echo "warning as error enabled" >&2
+              echo "please review symbols mentioned in warnings (if any)" >&2
               exit 1
-            fi
-          ''
-        else
-          ''
-            if [ -s conf2nix_warnings ]; then
-              echo "--- warnings ---"
-              cat conf2nix_warnings
-            fi
-          ''
-      }
+            ''
+          else
+            "# do noting"
+        }
+      fi
 
       runHook postBuild
     '';

@@ -16,12 +16,14 @@ In most cases the output of `nconf2nix` can not be directly used in `structuredE
 
 ## Usage of conf2nix
 
-To use `conf2nix`, call the main function `lib.conf2nix`. Read [conf2nix/default.nix](./conf2nix/default.nix) for more options.
+To use `conf2nix`, call the main function `lib.conf2nix`.
+**Please read [conf2nix/default.nix](./conf2nix/default.nix) for more options.**
 
 ```nix
 conf2nix {
     configFile = ./path/to/.config;
     src = kernel.src;
+    preset = "standalone"|"partial";
 }
 ```
 
@@ -30,7 +32,7 @@ There is also a convenient CLI wrapper `packages.${system}.conf2nix-wrapper` for
 ```console
 $ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper"
 usage: conf2nix <kernel-src> <kconfig-config> <extra args to nix>...
-$ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper" -- /path/to/linux/source-code config > config.nix
+$ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper" -- /path/to/linux/source-code config --arg preset standalone|partial > config.nix
 ...
 $ head -n 19 config.nix
 { lib }:

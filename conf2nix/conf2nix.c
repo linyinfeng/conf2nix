@@ -107,6 +107,12 @@ static void conf2nix_rec(const struct options *options, FILE *out,
 		}
 		goto conf_childs;
 	}
+	if (sym_is_choice(sym)) {
+		/* normally choice does not have prompt */
+		/* but some kernel source code does contain choice with prompt */
+		/* choice options are meaning less for nixpkgs */
+		goto conf_childs;
+	}
 
 	/* since we already do this several times */
 	/* we do not need to calculate value anymore */
@@ -167,7 +173,7 @@ static void warn_unused(const struct options *options, struct menu *menu)
 		goto conf_childs;
 	}
 	sym = menu->sym;
-	if (!sym)
+	if (!sym || sym_is_choice(sym))
 		goto conf_childs;
 
 	if (sym->name && sym->flags & SYMBOL_DEF_USER &&

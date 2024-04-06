@@ -54,9 +54,6 @@ lib.makeOverridable (
 
     makeFlags =
       [ "ARCH=${kernelArch}" ]
-      ++ lib.optionals (stdenv.hostPlatform != stdenv.buildPlatform) [
-        "CROSS_COMPILE=${stdenv.cc.targetPrefix}"
-      ]
       ++ (stdenv.hostPlatform.linux-kernel.makeFlags or [ ]);
 
     env = {

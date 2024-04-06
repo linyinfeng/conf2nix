@@ -23,7 +23,7 @@ static void conf2nix(const struct options *options);
 static void conf2nix_rec(const struct options *options, FILE *out,
 			 struct menu *menu, const char *parent_prompt,
 			 int level, bool *new_line_needed);
-static void warn_unused(struct menu *menu);
+static void warn_unused(const struct options *options, struct menu *menu);
 static void conf2nix_level_indicator(FILE *out, int level);
 static void conf2nix_heading(FILE *out);
 static void conf2nix_footing(FILE *out);
@@ -43,7 +43,7 @@ static void conf2nix(const struct options *options)
 	bool new_line_needed = false;
 	conf2nix_heading(stdout);
 	conf2nix_rec(options, stdout, &rootmenu, NULL, 0, &new_line_needed);
-	warn_unused(&rootmenu);
+	warn_unused(options, &rootmenu);
 	conf2nix_footing(stdout);
 }
 
@@ -141,10 +141,13 @@ conf_childs:
 	free(combined_prompt);
 }
 
-static void warn_unused(struct menu *menu)
+static void warn_unused(const struct options *options, struct menu *menu)
 {
 	struct symbol *sym;
 	struct menu *child;
+
+	if (options->ignore_invisible && !menu_is_visible(menu))
+		return;
 
 	if (!menu_has_prompt(menu)) {
 		/* do not check unused for symbols without prompt */
@@ -162,7 +165,7 @@ static void warn_unused(struct menu *menu)
 
 conf_childs:
 	for (child = menu->list; child; child = child->next)
-		warn_unused(child);
+		warn_unused(options, child);
 }
 
 static void conf2nix_level_indicator(FILE *out, int level)

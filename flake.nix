@@ -104,9 +104,7 @@
                     # test build on a generated full kernel configuration
                     configFile = testKernel.configfile;
                     kernel = testKernel;
-                    # generated config requires warnUnused = false
-                    # since it contains symbols that does not have prompt
-                    warnUnused = false;
+                    preset = "standalone";
                   };
                 }
               );

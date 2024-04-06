@@ -38,6 +38,7 @@ lib.makeOverridable (
     src ? kernel.src,
     patches ? kernel.patches,
     kernelArch ? pkgs.stdenv.hostPlatform.linuxArch,
+    extraMakeFlags ? [ ],
 
     preset ? null, # possible values: "standalone"|"partial"|null
 
@@ -91,7 +92,18 @@ lib.makeOverridable (
       ''}
     '';
 
-    makeFlags = [ "ARCH=${kernelArch}" ] ++ (stdenv.hostPlatform.linux-kernel.makeFlags or [ ]);
+    makeFlags =
+      [
+        "CC=${stdenv.cc}/bin/${stdenv.cc.targetPrefix}cc"
+        "HOSTCC=${buildPackages.stdenv.cc}/bin/${buildPackages.stdenv.cc.targetPrefix}cc"
+        "HOSTLD=${buildPackages.stdenv.cc.bintools}/bin/${buildPackages.stdenv.cc.targetPrefix}ld"
+        "ARCH=${kernelArch}"
+      ]
+      ++ lib.optionals (stdenv.hostPlatform != stdenv.buildPlatform) [
+        "CROSS_COMPILE=${stdenv.cc.targetPrefix}"
+      ]
+      ++ (stdenv.hostPlatform.linux-kernel.makeFlags or [ ])
+      ++ extraMakeFlags;
 
     env = {
       CONF2NIX_IGNORE_INVISIBLE = boolToEnv ignoreInvisible;
@@ -104,9 +116,11 @@ lib.makeOverridable (
     buildPhase = ''
       runHook preBuild
 
+      set -x
       make $makeFlags build_nixconfig
       make $makeFlags nixconfig >config.nix \
         2> >(tee warnings >&2)
+      set +x
 
       if [ -s warnings ]; then
         ${
@@ -117,7 +131,9 @@ lib.makeOverridable (
               exit 1
             ''
           else
-            "# do noting"
+            ''
+              echo "warning emitted" >&2
+            ''
         }
       fi
 

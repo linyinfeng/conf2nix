@@ -41,11 +41,12 @@ static const size_t CONF2NIX_ITERATION = 3;
 
 static void conf2nix(const struct options *options)
 {
+	size_t iter;
 	size_t i;
 	struct symbol *sym;
 
 	/* calculate sym several times to make sure visibility is accurate */
-	for (size_t iter = 0; iter < CONF2NIX_ITERATION; iter++) {
+	for (iter = 0; iter < CONF2NIX_ITERATION; iter++) {
 		for_all_symbols(i, sym) sym_calc_value(sym);
 	}
 

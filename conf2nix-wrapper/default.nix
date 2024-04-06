@@ -12,22 +12,20 @@ writeShellApplication {
     }
 
     function usage {
-      message "usage: conf2nix <kernel-expr> <kconfig-config> <extra args to nix>..."
-      message "  kernel-expr is a nix expression evaluate to a kernel (using buildLinux)"
+      message "usage: conf2nix <kconfig-config> --arg kernel <nix-expr> <extra args to nix>..."
     }
 
     function nix_wrapper {
       nix --extra-experimental-features "nix-command flakes" "$@"
     }
 
-    if [ $# -lt 2 ]; then
+    if [ $# -lt 1 ]; then
       usage
       exit 1
     fi
 
-    kernel_nix="$1"
-    original_config_path="$2"
-    shift 2
+    original_config_path="$1"
+    shift 1
     nix_args=("$@")
     config=$(realpath "$original_config_path")
 
@@ -41,12 +39,11 @@ writeShellApplication {
         inherit (pkgs) lib;
         conf2nix = import "${self}/conf2nix" { inherit lib; };
         configFile = builtins.path { name = "config"; path = /. + "$config"; };
-        kernel = $kernel_nix;
         conf2nixArgs = lib.attrsets.removeAttrs args [ "pkgs" ];
       in
       conf2nix ({
-        inherit configFile kernel;
-      } // args)
+        inherit configFile;
+      } // conf2nixArgs)
     EOF
 
     message "about to evaluate and build"

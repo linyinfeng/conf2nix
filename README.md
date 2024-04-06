@@ -31,9 +31,11 @@ There is also a convenient CLI wrapper `packages.${system}.conf2nix-wrapper` for
 
 ```console
 $ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper"
-usage: conf2nix <kernel-expr> <kconfig-config> <extra args to nix>...
-  kernel-expr is a nix expression evaluate to a kernel (using buildLinux)
-$ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper" -- '(import <nixpkgs> {}).linux_latest' /path/to/config --argstr preset standalone|partial > config.nix
+usage: conf2nix <kconfig-config> --arg kernel <nix-expr> <extra args to nix>...
+$ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper" -- \
+    /path/to/config \
+    --arg kernel '(import <nixpkgs> {}).linux_latest' \
+    --argstr preset standalone|partial > config.nix
 ...
 $ head -n 28 config.nix
 { lib }:

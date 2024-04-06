@@ -31,28 +31,38 @@ There is also a convenient CLI wrapper `packages.${system}.conf2nix-wrapper` for
 
 ```console
 $ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper"
-usage: conf2nix <kernel-src> <kconfig-config> <extra args to nix>...
-$ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper" -- /path/to/linux/source-code config --arg preset standalone|partial > config.nix
+usage: conf2nix <kernel-expr> <kconfig-config> <extra args to nix>...
+  kernel-expr is a nix expression evaluate to a kernel (using buildLinux)
+$ nix run "github:linyinfeng/conf2nix#conf2nix-wrapper" -- '(import <nixpkgs> {}).linux_latest' /path/to/config --argstr preset standalone|partial > config.nix
 ...
-$ head -n 19 config.nix
+$ head -n 28 config.nix
 { lib }:
 let
   inherit (lib.kernel) yes no module freeform;
 in {
-  # Linux/x86 6.8.2 Kernel Configuration
+  # Linux/x86_64 6.8.3 Kernel Configuration
 
   ## General setup
+  "COMPILE_TEST" = no; # Compile also drivers which will not load
+  "WERROR" = no; # Compile the kernel with warnings as errors
   "LOCALVERSION_AUTO" = yes; # Automatically append version information to the version string
+  "KERNEL_GZIP" = no; # Gzip
+  "KERNEL_BZIP2" = no; # Bzip2
+  "KERNEL_LZMA" = no; # LZMA
+  "KERNEL_XZ" = no; # XZ
+  "KERNEL_LZO" = no; # LZO
+  "KERNEL_LZ4" = no; # LZ4
   "KERNEL_ZSTD" = yes; # ZSTD
   "DEFAULT_HOSTNAME" = freeform "(none)"; # Default hostname
   "SYSVIPC" = yes; # System V IPC
   "POSIX_MQUEUE" = yes; # POSIX Message Queues
   "WATCH_QUEUE" = yes; # General notification queue
   "CROSS_MEMORY_ATTACH" = yes; # Enable process_vm_readv/writev syscalls
+  "USELIB" = no; # uselib syscall (for libc5 and earlier)
   "AUDIT" = yes; # Auditing support
 
   ### General setup -> IRQ subsystem
-  "SPARSE_IRQ" = yes; # Support sparse irq numbering
+  "GENERIC_IRQ_DEBUGFS" = no; # Expose irq internals in debugfs
   ### General setup: end of IRQ subsystem
 ```
 

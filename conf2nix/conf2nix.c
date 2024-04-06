@@ -37,9 +37,18 @@ static char *escape_string_value(const char *in);
 static void usage(const char *progname, FILE *out);
 static bool parse_bool_env(const char *progname, const char *env_name,
 			   bool default_value);
+static const size_t CONF2NIX_ITERATION = 3;
 
 static void conf2nix(const struct options *options)
 {
+	size_t i;
+	struct symbol *sym;
+
+	/* calculate sym several times to make sure visibility is accurate */
+	for (size_t iter = 0; iter < CONF2NIX_ITERATION; iter++) {
+		for_all_symbols(i, sym) sym_calc_value(sym);
+	}
+
 	bool new_line_needed = false;
 	conf2nix_heading(stdout);
 	conf2nix_rec(options, stdout, &rootmenu, NULL, 0, &new_line_needed);
@@ -98,7 +107,9 @@ static void conf2nix_rec(const struct options *options, FILE *out,
 		goto conf_childs;
 	}
 
-	sym_calc_value(sym);
+	/* since we already do this several times */
+	/* we do not need to calculate value anymore */
+	// sym_calc_value(sym);
 
 	if (sym->flags & SYMBOL_WRITTEN)
 		goto conf_childs;

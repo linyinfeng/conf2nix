@@ -12,7 +12,8 @@ writeShellApplication {
     }
 
     function usage {
-      message "usage: conf2nix <kernel-src> <kconfig-config> <extra args to nix>..."
+      message "usage: conf2nix <kernel-expr> <kconfig-config> <extra args to nix>..."
+      message "  kernel-expr is a nix expression evaluate to a kernel (using buildLinux)"
     }
 
     function nix_wrapper {
@@ -24,7 +25,7 @@ writeShellApplication {
       exit 1
     fi
 
-    kernel_src=$(realpath "$1")
+    kernel_nix="$1"
     original_config_path="$2"
     shift 2
     nix_args=("$@")
@@ -40,12 +41,11 @@ writeShellApplication {
         inherit (pkgs) lib;
         conf2nix = import "${self}/conf2nix" { inherit lib; };
         configFile = builtins.path { name = "config"; path = /. + "$config"; };
-        originalSrc = "$kernel_src";
-        src = if lib.isStorePath originalSrc then builtins.storePath originalSrc else lib.cleanSource originalSrc;
+        kernel = $kernel_nix;
+        conf2nixArgs = lib.attrsets.removeAttrs args [ "pkgs" ];
       in
       conf2nix ({
-        inherit configFile src;
-        patches = [];
+        inherit configFile kernel;
       } // args)
     EOF
 
@@ -53,21 +53,20 @@ writeShellApplication {
     message "---------------------------"
     cat "$tmp/conf2nix.nix" >&2
     message "---------------------------"
-    message "setting up log path filter..."
-    function warning_filter {
-      export original_config_path
-      perl -p -e 's/\.config:/$ENV{original_config_path}:/g'
-    }
-    message "log substitution: '.config:' -> '$(echo ".config:" | warning_filter)'"
     message "building..."
-    nix_wrapper build \
-      --file "$tmp/conf2nix.nix" \
-      --out-link "$tmp/config.nix" \
-      --print-build-logs \
-      "''${nix_args[@]}" \
-      2>&1 | warning_filter >&2
-    message "done."
-    message "---------------------------"
-    cat "$tmp/config.nix"
+    derivation=$(nix_wrapper path-info --file "$tmp/conf2nix.nix" --derivation "''${nix_args[@]}")
+    if nix_wrapper build  "$derivation^out" --out-link "$tmp/config.nix"; then
+      message "done."
+      message "---------------------------"
+      cat "$tmp/config.nix"
+    else
+      function warning_filter {
+        export original_config_path
+        perl -p -e 's/\.config:/$ENV{original_config_path}:/g'
+      }
+      message "log substitution: '.config:' -> '$(echo ".config:" | warning_filter)'"
+      nix_wrapper log "$derivation" | warning_filter >&2
+      exit 1
+    fi
   '';
 }

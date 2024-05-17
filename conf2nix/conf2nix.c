@@ -3,8 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <linux/version.h>
 
 #include "lkc.h"
+#ifdef CONF2NIX_LINUX_VERSION_GE_6_9_0
+#include "internal.h"
+#endif
 
 #define CONF2NIX_INDENT "  "
 
@@ -42,12 +46,18 @@ static const size_t CONF2NIX_ITERATION = 3;
 static void conf2nix(const struct options *options)
 {
 	size_t iter;
+#ifndef CONF2NIX_LINUX_VERSION_GE_6_9_0
 	size_t i;
+#endif
 	struct symbol *sym;
 
 	/* calculate sym several times to make sure visibility is accurate */
 	for (iter = 0; iter < CONF2NIX_ITERATION; iter++) {
+#ifdef CONF2NIX_LINUX_VERSION_GE_6_9_0
+		for_all_symbols(sym) sym_calc_value(sym);
+#else
 		for_all_symbols(i, sym) sym_calc_value(sym);
+#endif
 	}
 
 	bool new_line_needed = false;

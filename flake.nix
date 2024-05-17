@@ -96,28 +96,33 @@
               // (
                 # checks for conf2nix
                 let
-                  testKernel = pkgs.linux_latest;
-                in
-                {
-                  conf2nix = self.lib.conf2nix {
-                    # test build on a generated full kernel configuration
-                    configFile = testKernel.configfile;
-                    kernel = testKernel;
-                    preset = "standalone";
+                  testKernels = {
+                    linux = pkgs.linux;
+                    linux_latest = pkgs.linux_latest;
                   };
-                  conf2nix2conf =
-                    (pkgs.buildLinux {
-                      inherit (testKernel) src version patches;
-                      structuredExtraConfig = import self'.checks.conf2nix { inherit lib; };
-                      # since we generate on the final kernel configuration with preset standalone
-                      # it is already included in self'.checks..conf2nix
-                      enableCommonConfig = false;
-                    }).configfile;
-                  confEqualsToConf2nix2conf = pkgs.runCommand "conf-equal-test" { } ''
-                    diff "${testKernel.configfile}" "${self'.checks.conf2nix2conf}"
-                    touch "$out"
-                  '';
-                }
+                in
+                lib.fold lib.recursiveUpdate { } (
+                  lib.mapAttrsToList (kernelName: kernel: {
+                    "conf2nix-${kernelName}" = self.lib.conf2nix {
+                      # test build on a generated full kernel configuration
+                      configFile = kernel.configfile;
+                      kernel = kernel;
+                      preset = "standalone";
+                    };
+                    "conf2nix2conf-${kernelName}" =
+                      (pkgs.buildLinux {
+                        inherit (kernel) src version patches;
+                        structuredExtraConfig = import self'.checks."conf2nix-${kernelName}" { inherit lib; };
+                        # since we generate on the final kernel configuration with preset standalone
+                        # it is already included in self'.checks..conf2nix
+                        enableCommonConfig = false;
+                      }).configfile;
+                    "confEqualsToConf2nix2conf-${kernelName}" = pkgs.runCommand "conf-equal-test" { } ''
+                      diff "${kernel.configfile}" "${self'.checks."conf2nix2conf-${kernelName}"}"
+                      touch "$out"
+                    '';
+                  }) testKernels
+                )
               );
             treefmt = {
               projectRootFile = "flake.nix";

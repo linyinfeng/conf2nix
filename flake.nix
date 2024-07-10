@@ -71,10 +71,10 @@
                 commonArgs
                 // {
                   postInstall = ''
-                    installShellCompletion --cmd conf2nix \
-                      --bash <($out/bin/conf2nix completion bash) \
-                      --fish <($out/bin/conf2nix completion fish) \
-                      --zsh  <($out/bin/conf2nix completion zsh)
+                    installShellCompletion --cmd nconf2nix \
+                      --bash <($out/bin/nconf2nix completion bash) \
+                      --fish <($out/bin/nconf2nix completion fish) \
+                      --zsh  <($out/bin/nconf2nix completion zsh)
                   '';
                 }
               );

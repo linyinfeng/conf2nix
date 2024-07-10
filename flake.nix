@@ -43,7 +43,7 @@
             ...
           }:
           let
-            craneLib = inputs.crane.lib.${system};
+            craneLib = inputs.crane.mkLib pkgs;
             src = craneLib.cleanCargoSource (craneLib.path ./nconf2nix);
             bareCommonArgs = {
               inherit src;
@@ -127,7 +127,7 @@
             treefmt = {
               projectRootFile = "flake.nix";
               programs = {
-                nixfmt-rfc-style.enable = true;
+                nixfmt.enable = true;
                 rustfmt.enable = true;
                 prettier.enable = true;
                 taplo.enable = true;

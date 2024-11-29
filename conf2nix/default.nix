@@ -67,7 +67,8 @@ lib.makeOverridable (
       CONF2NIX_WARN_UNUSED = boolToEnv warnUnused;
       CONF2NIX_WITH_PROMPT = boolToEnv withPrompt;
       HOSTCFLAGS = lib.escapeShellArgs (
-        lib.optional (lib.versionAtLeast kernel.version "6.9") "-DCONF2NIX_LINUX_VERSION_GE_6_9_0"
+        (lib.optional (lib.versionAtLeast kernel.version "6.9") "-DCONF2NIX_LINUX_VERSION_GE_6_9_0")
+        ++ (lib.optional (lib.versionAtLeast kernel.version "6.12") "-DCONF2NIX_LINUX_HAS_XALLOC_H")
       );
     };
 

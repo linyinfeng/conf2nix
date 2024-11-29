@@ -9,6 +9,9 @@
 #ifdef CONF2NIX_LINUX_VERSION_GE_6_9_0
 #include "internal.h"
 #endif
+#ifdef CONF2NIX_LINUX_HAS_XALLOC_H
+#include <xalloc.h>
+#endif
 
 #define CONF2NIX_INDENT "  "
 

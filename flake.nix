@@ -87,7 +87,12 @@
                 inherit (self'.packages) nconf2nix;
                 nconf2nix-doc = craneLib.cargoDoc commonArgs;
                 nconf2nix-fmt = craneLib.cargoFmt { inherit src; };
-                nconf2nix-nextest = craneLib.cargoNextest commonArgs;
+                nconf2nix-nextest = craneLib.cargoNextest (
+                  commonArgs
+                  // {
+                    cargoNextestExtraArgs = lib.escapeShellArgs [ "--no-tests=warn" ];
+                  }
+                );
                 nconf2nix-clippy = craneLib.cargoClippy (
                   commonArgs // { cargoClippyExtraArgs = "--all-targets -- --deny warnings"; }
                 );

@@ -3,12 +3,12 @@ mod options;
 use std::{
     cell::Cell,
     fs::OpenOptions,
-    io::{stdin, stdout, BufRead, BufReader, BufWriter, Read, Write},
+    io::{BufRead, BufReader, BufWriter, Read, Write, stdin, stdout},
     process::exit,
 };
 
 use anyhow::Context;
-use clap::{crate_name, CommandFactory, Parser};
+use clap::{CommandFactory, Parser, crate_name};
 use log::{error, warn};
 use options::Options;
 

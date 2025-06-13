@@ -2,6 +2,7 @@ mod options;
 
 use std::{
     cell::Cell,
+    collections::BTreeMap,
     fs::OpenOptions,
     io::{BufRead, BufReader, BufWriter, Read, Write, stdin, stdout},
     process::exit,
@@ -49,13 +50,13 @@ struct RunContext {
     error_reported: Cell<bool>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct Symbol {
     name: String,
     value: Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 enum Value {
     // we can not distinguish boolean and tristate values without parsing Kconfig
     // Boolean(bool),
@@ -66,7 +67,7 @@ enum Value {
     Int(String),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Tristate {
     No,
     Module,
@@ -117,7 +118,18 @@ impl RunContext {
         }
 
         writeln!(output, "{HEADING}",)?;
+        // TODO simply use BTreeMap for symbols, detect duplication early
+        let mut seen = BTreeMap::new();
         for symbol in symbols {
+            if let Some(seen_value) = seen.get(&symbol.name) {
+                if seen_value == &symbol.value {
+                    warn!("symbol '{}' duplicated, ignoring", symbol.name);
+                    continue;
+                } else {
+                    error!("symbol '{}' redefined with different value", symbol.name);
+                }
+            }
+            seen.insert(symbol.name.clone(), symbol.value.clone());
             writeln!(
                 output,
                 r#"{INDENT}"{name}" = {v};"#,

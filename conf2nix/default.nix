@@ -48,6 +48,10 @@ lib.makeOverridable (
       standalone = true;
       partial = false; # we do not have the full information for visiblilty in partial config
     },
+    normalize ? argDefault "normalize" preset {
+      standalone = true;
+      partial = false;
+    },
     warnUnused ? true,
     outputN ? "no",
     warningAsError ? true,
@@ -83,6 +87,9 @@ lib.makeOverridable (
       make $makeFlags "''${makeFlagsArray[@]}" build_nixconfig
 
       cp -v ${configFile} .config
+      ${lib.optionalString normalize ''
+        make $makeFlags "''${makeFlagsArray[@]}" KCONFIG_CONFIG=.config olddefconfig
+      ''}
       ${lib.optionalString stripComments ''
         echo "stripping line comments from .conifg..."
         sed --in-place=original 's/^#.*$//g' .config

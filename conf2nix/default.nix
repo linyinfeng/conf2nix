@@ -58,11 +58,11 @@ lib.makeOverridable (
     emptyStringWorkaround ? true,
     withPrompt ? true,
   }:
+  let
+    inherit (kernel) stdenv;
+  in
   kernel.configfile.overrideAttrs (old: {
     name = "config.nix";
-
-    # just use the full makeFlags from linuxManualConfig
-    inherit (kernel) makeFlags;
 
     env = (old.env or { }) // {
       CONF2NIX_IGNORE_INVISIBLE = boolToEnv ignoreInvisible;
@@ -84,17 +84,20 @@ lib.makeOverridable (
       '';
 
     buildPhase = ''
-      make $makeFlags "''${makeFlagsArray[@]}" build_nixconfig
+      function call_make {
+        make $makeFlags ARCH=$kernelArch CROSS_COMPILE=${stdenv.cc.targetPrefix} KCONFIG_CONFIG=.config "$@"
+      }
+      call_make build_nixconfig
 
       cp -v ${configFile} .config
       ${lib.optionalString normalize ''
-        make $makeFlags "''${makeFlagsArray[@]}" KCONFIG_CONFIG=.config olddefconfig
+        call_make olddefconfig
       ''}
       ${lib.optionalString stripComments ''
         echo "stripping line comments from .conifg..."
         sed --in-place=original 's/^#.*$//g' .config
       ''}
-      make $makeFlags "''${makeFlagsArray[@]}" KCONFIG_CONFIG=.config nixconfig \
+      call_make nixconfig \
         >config.nix \
         2> >(tee warnings >&2)
 

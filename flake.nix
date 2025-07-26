@@ -81,53 +81,52 @@
             overlayAttrs = {
               inherit (config.packages) nconf2nix conf2nix-wrapper;
             };
-            checks =
-              {
-                # checks for nconf2nix
-                inherit (self'.packages) nconf2nix;
-                nconf2nix-doc = craneLib.cargoDoc commonArgs;
-                nconf2nix-fmt = craneLib.cargoFmt { inherit src; };
-                nconf2nix-nextest = craneLib.cargoNextest (
-                  commonArgs
-                  // {
-                    cargoNextestExtraArgs = lib.escapeShellArgs [ "--no-tests=warn" ];
-                  }
-                );
-                nconf2nix-clippy = craneLib.cargoClippy (
-                  commonArgs // { cargoClippyExtraArgs = "--all-targets -- --deny warnings"; }
-                );
-              }
-              // (
-                # checks for conf2nix
-                let
-                  testKernels = {
-                    linux = pkgs.linux;
-                    linux_latest = pkgs.linux_latest;
-                  };
-                in
-                lib.fold lib.recursiveUpdate { } (
-                  lib.mapAttrsToList (kernelName: kernel: {
-                    "conf2nix-${kernelName}" = self.lib.conf2nix {
-                      # test build on a generated full kernel configuration
-                      configFile = kernel.configfile;
-                      kernel = kernel;
-                      preset = "standalone";
-                    };
-                    "conf2nix2conf-${kernelName}" =
-                      (pkgs.buildLinux {
-                        inherit (kernel) src version patches;
-                        structuredExtraConfig = import self'.checks."conf2nix-${kernelName}" { inherit lib; };
-                        # since we generate on the final kernel configuration with preset standalone
-                        # it is already included in self'.checks..conf2nix
-                        enableCommonConfig = false;
-                      }).configfile;
-                    "confEqualsToConf2nix2conf-${kernelName}" = pkgs.runCommand "conf-equal-test" { } ''
-                      diff "${kernel.configfile}" "${self'.checks."conf2nix2conf-${kernelName}"}"
-                      touch "$out"
-                    '';
-                  }) testKernels
-                )
+            checks = {
+              # checks for nconf2nix
+              inherit (self'.packages) nconf2nix;
+              nconf2nix-doc = craneLib.cargoDoc commonArgs;
+              nconf2nix-fmt = craneLib.cargoFmt { inherit src; };
+              nconf2nix-nextest = craneLib.cargoNextest (
+                commonArgs
+                // {
+                  cargoNextestExtraArgs = lib.escapeShellArgs [ "--no-tests=warn" ];
+                }
               );
+              nconf2nix-clippy = craneLib.cargoClippy (
+                commonArgs // { cargoClippyExtraArgs = "--all-targets -- --deny warnings"; }
+              );
+            }
+            // (
+              # checks for conf2nix
+              let
+                testKernels = {
+                  linux = pkgs.linux;
+                  linux_latest = pkgs.linux_latest;
+                };
+              in
+              lib.fold lib.recursiveUpdate { } (
+                lib.mapAttrsToList (kernelName: kernel: {
+                  "conf2nix-${kernelName}" = self.lib.conf2nix {
+                    # test build on a generated full kernel configuration
+                    configFile = kernel.configfile;
+                    kernel = kernel;
+                    preset = "standalone";
+                  };
+                  "conf2nix2conf-${kernelName}" =
+                    (pkgs.buildLinux {
+                      inherit (kernel) src version patches;
+                      structuredExtraConfig = import self'.checks."conf2nix-${kernelName}" { inherit lib; };
+                      # since we generate on the final kernel configuration with preset standalone
+                      # it is already included in self'.checks..conf2nix
+                      enableCommonConfig = false;
+                    }).configfile;
+                  "confEqualsToConf2nix2conf-${kernelName}" = pkgs.runCommand "conf-equal-test" { } ''
+                    diff "${kernel.configfile}" "${self'.checks."conf2nix2conf-${kernelName}"}"
+                    touch "$out"
+                  '';
+                }) testKernels
+              )
+            );
             treefmt = {
               projectRootFile = "flake.nix";
               programs = {

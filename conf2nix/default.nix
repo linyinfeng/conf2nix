@@ -76,12 +76,10 @@ lib.makeOverridable (
       );
     };
 
-    postPatch =
-      (old.postPatch or "")
-      + ''
-        cp -v ${./conf2nix.c} scripts/kconfig/conf2nix.c
-        echo "include ${./Makefile.conf2nix}" >> scripts/kconfig/Makefile
-      '';
+    postPatch = (old.postPatch or "") + ''
+      cp -v ${./conf2nix.c} scripts/kconfig/conf2nix.c
+      echo "include ${./Makefile.conf2nix}" >> scripts/kconfig/Makefile
+    '';
 
     buildPhase = ''
       function call_make {

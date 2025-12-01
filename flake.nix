@@ -104,7 +104,7 @@
                   linux_latest = pkgs.linux_latest;
                 };
               in
-              lib.fold lib.recursiveUpdate { } (
+              lib.foldr lib.recursiveUpdate { } (
                 lib.mapAttrsToList (kernelName: kernel: {
                   "conf2nix-${kernelName}" = self.lib.conf2nix {
                     # test build on a generated full kernel configuration

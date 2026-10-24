@@ -55,7 +55,12 @@ lib.makeOverridable (
     warnUnused ? true,
     outputN ? "no",
     warningAsError ? true,
-    emptyStringWorkaround ? true,
+    # Drop symbols whose value is the empty string. The round trip then falls
+    # back to the kconfig default, which diverges whenever that default is not
+    # empty (e.g. MODULE_SIG_KEY defaults to "certs/signing_key.pem").
+    # Only needed for nixpkgs versions whose structured config cannot express
+    # `freeform ""`.
+    emptyStringWorkaround ? false,
     withPrompt ? true,
   }:
   let

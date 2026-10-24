@@ -270,8 +270,8 @@ static void conf2nix_symbol(const struct options *options, FILE *out,
 	case S_INT:
 		val = value->val;
 
-		// this is a workaround for nixpkgs
-		// the config system of nixpkgs does not handle `freefrom ""` properly
+		// dropping the symbol makes the round trip fall back to the kconfig
+		// default, so this is only safe when that default is empty
 		if (*val == '\0' && !options->output_empty_string) {
 			break;
 		}
